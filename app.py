@@ -129,6 +129,17 @@ def compare_stocks():
     plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     return jsonify({"plot": plot_json})
 
+@app.route('/test_yf')
+def test_yf():
+    import yfinance as yf
+    try:
+        hist = yf.Ticker("AAPL").history(period="1mo")
+        if hist.empty:
+            return "No data"
+        return hist.to_html()
+    except Exception as e:
+        return str(e)
+
 if __name__ == '__main__':
     # Get port from environment variable or default to 5001
     port = int(os.environ.get("PORT", 5001))
