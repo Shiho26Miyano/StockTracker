@@ -11,9 +11,15 @@ app = Flask(__name__)
 # Stock tickers mapping
 STOCK_TICKERS = {
     "apple": "AAPL",
-    "walmart": "WMT",
-    "costco": "COST",
-    "tiktok": "BDNCE.MX"  # ByteDance (TikTok parent company) ticker - using Mexican exchange as example
+    "microsoft": "MSFT",
+    "amazon": "AMZN",
+    "google": "GOOGL",
+    "meta": "META",
+    "tesla": "TSLA", 
+    "nvidia": "NVDA",
+    "jpmorgan": "JPM",
+    "bankofamerica": "BAC",
+    "walmart": "WMT"
 }
 
 @app.route('/')
@@ -123,4 +129,4 @@ def compare_stocks():
     return jsonify({"plot": plot_json})
 
 if __name__ == '__main__':
-    app.run(debug=True) 
+    app.run(host='0.0.0.0', port=5001, debug=True) 
