@@ -1,6 +1,6 @@
 # StockTracker
 
-A Python web application to track stock prices for Apple, TikTok (ByteDance), Walmart, and Costco.
+A Python web application to track stock prices for Apple, Microsoft, Amazon, Google, Meta, Tesla, Nvidia, JPMorgan, Bank of America, and Walmart.
 
 ## Features
 
@@ -12,7 +12,7 @@ A Python web application to track stock prices for Apple, TikTok (ByteDance), Wa
 
 ## Requirements
 
-- Python 3.12
+- Python 3.11
 - Flask
 - yfinance
 - pandas
@@ -52,7 +52,6 @@ http://127.0.0.1:5000/
 ## Notes
 
 - Stock data is fetched from Yahoo Finance (yfinance)
-- ByteDance (TikTok parent company) is represented by the ticker BDNCE.MX as an example
 - The application updates data on request, not in real-time
 - Market data may be delayed by 15-20 minutes
 
@@ -64,4 +63,4 @@ For production deployment, consider using Gunicorn:
 gunicorn app:app
 ```
 
-Or deploy to a platform like Heroku using the included Procfile.
+Or deploy to a platform like Fly.io or Railway using the included Procfile and runtime.txt for Python 3.11 compatibility.
