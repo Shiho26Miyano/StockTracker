@@ -1,6 +1,3 @@
-<<<<<<< HEAD
-# StockTracker
-=======
 # StockTracker
 
 A Python web application to track stock prices for Apple, TikTok (ByteDance), Walmart, and Costco.
@@ -67,5 +64,4 @@ For production deployment, consider using Gunicorn:
 gunicorn app:app
 ```
 
-Or deploy to a platform like Heroku using the included Procfile. 
->>>>>>> feature/initial-setup
+Or deploy to a platform like Heroku using the included Procfile.
