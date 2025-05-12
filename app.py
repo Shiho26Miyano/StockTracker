@@ -24,9 +24,10 @@ RATE_WINDOW = 60  # seconds
 request_history = {}
 
 # Yahoo Finance rate limiting handling
-YF_MAX_RETRIES = 3
-YF_BACKOFF_FACTOR = 2
-YF_INITIAL_WAIT = 1
+YF_MAX_RETRIES = int(os.environ.get('YF_MAX_RETRIES', 5))
+YF_BACKOFF_FACTOR = float(os.environ.get('YF_BACKOFF_FACTOR', 2))
+YF_INITIAL_WAIT = float(os.environ.get('YF_INITIAL_WAIT', 2))
+YF_TIMEOUT = int(os.environ.get('YF_TIMEOUT', 30))
 
 def rate_limit(f):
     @wraps(f)
@@ -66,9 +67,34 @@ def get_stock_with_retry(ticker, period):
     retries = 0
     while retries < YF_MAX_RETRIES:
         try:
-            stock = yf.Ticker(ticker)
+            # Use a session with increased timeout
+            session = requests.Session()
+            session.timeout = YF_TIMEOUT
+            
+            stock = yf.Ticker(ticker, session=session)
+            
+            # First try to get history data with minimal parameters
             hist = stock.history(period=period)
-            info = stock.info
+            
+            # If we got history data, try to get minimal info separately
+            # This helps avoid the more complex and error-prone full info request
+            info = {}
+            try:
+                # Only get essential info fields
+                minimal_info = stock.get_fast_info()
+                info = {
+                    'shortName': minimal_info.get('shortName', ticker),
+                    'regularMarketPrice': minimal_info.get('regularMarketPrice', None),
+                    'previousClose': minimal_info.get('previousClose', None)
+                }
+            except Exception as info_err:
+                app.logger.warning(f"Could not get fast info for {ticker}: {str(info_err)}")
+                # Fallback to full info only if needed
+                try:
+                    info = stock.info
+                except Exception as full_info_err:
+                    app.logger.warning(f"Could not get full info for {ticker}: {str(full_info_err)}")
+                    # Continue anyway since we have hist data
             
             # Check if we got valid data
             if hist.empty:
@@ -78,22 +104,45 @@ def get_stock_with_retry(ticker, period):
                 "history": hist,
                 "info": info
             }
+            
         except HTTPError as e:
-            if hasattr(e, 'response') and e.response.status_code == 429:
+            if hasattr(e, 'response') and e.response and e.response.status_code == 429:
                 wait_time = YF_INITIAL_WAIT * (YF_BACKOFF_FACTOR ** retries) + random.uniform(0, 1)
                 app.logger.warning(f"Rate limited by Yahoo Finance. Retrying in {wait_time:.2f} seconds...")
                 time.sleep(wait_time)
                 retries += 1
             else:
-                raise e
+                app.logger.error(f"HTTP error for {ticker}: {str(e)}")
+                # Try a different approach
+                if retries < YF_MAX_RETRIES - 1:
+                    wait_time = YF_INITIAL_WAIT * (YF_BACKOFF_FACTOR ** retries) + random.uniform(0, 1)
+                    app.logger.warning(f"Retrying with different approach in {wait_time:.2f} seconds...")
+                    time.sleep(wait_time)
+                    retries += 1
+                else:
+                    raise
         except Exception as e:
             # For other exceptions, retry with backoff
             wait_time = YF_INITIAL_WAIT * (YF_BACKOFF_FACTOR ** retries) + random.uniform(0, 1)
-            app.logger.warning(f"Error fetching data: {str(e)}. Retrying in {wait_time:.2f} seconds...")
+            app.logger.warning(f"Error fetching data for {ticker}: {str(e)}. Retrying in {wait_time:.2f} seconds...")
             time.sleep(wait_time)
             retries += 1
     
-    # If we've exhausted retries
+    # If we've exhausted retries, try one last approach with just historical data
+    try:
+        app.logger.warning(f"Last attempt for {ticker}: fetching only historical data")
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period=period)
+        
+        if not hist.empty:
+            return {
+                "history": hist,
+                "info": {"shortName": ticker}
+            }
+    except Exception as last_err:
+        app.logger.error(f"Final attempt failed for {ticker}: {str(last_err)}")
+        
+    # If we get here, all attempts have failed
     raise Exception(f"Failed to fetch data for {ticker} after {YF_MAX_RETRIES} retries")
 
 def get_cached_stock_data(ticker, period):
@@ -142,15 +191,30 @@ def get_stock_data():
             if hist.empty:
                 return jsonify({"error": "No data available for this ticker"}), 400
             
-            company_name = info.get('shortName', ticker)
-            # Fallback mechanisms for price data
-            if 'currentPrice' in info:
-                current_price = info.get('currentPrice')
-            elif 'regularMarketPrice' in info:
-                current_price = info.get('regularMarketPrice')
-            else:
-                current_price = hist['Close'].iloc[-1] if not hist.empty else 0
+            # Get company name with multiple fallbacks
+            company_name = ticker
+            if info:
+                if 'shortName' in info:
+                    company_name = info.get('shortName')
+                elif 'longName' in info:
+                    company_name = info.get('longName')
             
+            # Get current price with multiple fallbacks
+            current_price = None
+            if info:
+                for price_field in ['currentPrice', 'regularMarketPrice', 'previousClose', 'open']:
+                    if price_field in info and info[price_field] is not None:
+                        current_price = info[price_field]
+                        break
+            
+            # If we still don't have a price, use history
+            if current_price is None and not hist.empty:
+                current_price = hist['Close'].iloc[-1]
+            
+            # If we still don't have a price (very unlikely), use a placeholder
+            if current_price is None:
+                current_price = 0
+                
             fig = go.Figure()
             fig.add_trace(go.Candlestick(
                 x=hist.index,
@@ -192,7 +256,44 @@ def get_stock_data():
             
         except Exception as e:
             app.logger.error(f"Error processing stock data for {ticker}: {str(e)}")
-            return jsonify({"error": f"Failed to fetch stock data: {str(e)}"}), 500
+            
+            # Create a simple fallback visualization
+            dates = pd.date_range(start=datetime.now() - timedelta(days=30), end=datetime.now(), freq='D')
+            fallback_fig = go.Figure()
+            
+            fallback_fig.add_annotation(
+                x=0.5,
+                y=0.5,
+                xref="paper",
+                yref="paper",
+                text=f"Unable to load data for {ticker}<br>Please try again later",
+                showarrow=False,
+                font=dict(size=20)
+            )
+            
+            fallback_fig.update_layout(
+                title=f'Data Temporarily Unavailable - {ticker}',
+                template='plotly_dark',
+                xaxis=dict(visible=False),
+                yaxis=dict(visible=False)
+            )
+            
+            fallback_plot = json.dumps(fallback_fig, cls=plotly.utils.PlotlyJSONEncoder)
+            
+            response_data = {
+                "plot": fallback_plot,
+                "current_price": 0,
+                "percent_change": 0,
+                "company_name": ticker,
+                "last_updated": datetime.now().isoformat(),
+                "error": f"Failed to fetch stock data: {str(e)}",
+                "is_fallback": True
+            }
+            
+            response = make_response(jsonify(response_data))
+            # Short cache time for errors
+            response.headers['Cache-Control'] = 'public, max-age=60'
+            return response
             
     except Exception as e:
         app.logger.error(f"General error in get_stock_data: {str(e)}")
@@ -217,6 +318,7 @@ def compare_stocks():
         
         fig = go.Figure()
         errors = []
+        successful_tickers = []
         
         for ticker in tickers:
             try:
@@ -236,24 +338,70 @@ def compare_stocks():
                         mode='lines',
                         name=ticker
                     ))
+                    successful_tickers.append(ticker)
             except Exception as e:
                 app.logger.error(f"Error processing {ticker}: {str(e)}")
                 errors.append(f"{ticker}: {str(e)}")
         
         # If we couldn't get data for any tickers
         if not fig.data and errors:
-            return jsonify({"error": "Failed to retrieve data for any tickers", "details": errors}), 500
+            # Create fallback visualization
+            fallback_fig = go.Figure()
+            
+            fallback_fig.add_annotation(
+                x=0.5,
+                y=0.5,
+                xref="paper",
+                yref="paper",
+                text="Unable to load comparison data<br>Please try again later",
+                showarrow=False,
+                font=dict(size=20)
+            )
+            
+            fallback_fig.update_layout(
+                title='Data Temporarily Unavailable',
+                template='plotly_dark',
+                xaxis=dict(visible=False),
+                yaxis=dict(visible=False)
+            )
+            
+            fallback_plot = json.dumps(fallback_fig, cls=plotly.utils.PlotlyJSONEncoder)
+            return jsonify({
+                "plot": fallback_plot, 
+                "error": "Failed to retrieve data for any tickers", 
+                "details": errors,
+                "is_fallback": True
+            })
         
-        fig.update_layout(
-            title='Comparative Stock Performance (% Change)',
-            xaxis_title='Date',
-            yaxis_title='Percent Change (%)',
-            template='plotly_dark'
-        )
+        # If we're here, we have at least some data
+        if successful_tickers:
+            fig.update_layout(
+                title='Comparative Stock Performance (% Change)',
+                xaxis_title='Date',
+                yaxis_title='Percent Change (%)',
+                template='plotly_dark'
+            )
+            
+            # Add annotation if some tickers failed
+            if errors:
+                failed_tickers = [e.split(':')[0].strip() for e in errors]
+                fig.add_annotation(
+                    x=0.5,
+                    y=0.02,
+                    xref="paper",
+                    yref="paper",
+                    text=f"Failed to load: {', '.join(failed_tickers)}",
+                    showarrow=False,
+                    font=dict(size=12, color="red")
+                )
         
         plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
         
-        response_data = {"plot": plot_json}
+        response_data = {
+            "plot": plot_json,
+            "successful_tickers": successful_tickers
+        }
+        
         if errors:
             response_data["partial_errors"] = errors
         

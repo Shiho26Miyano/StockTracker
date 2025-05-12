@@ -29,7 +29,11 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     FLASK_APP=app.py \
     FLASK_ENV=production \
     FLASK_DEBUG=False \
-    PYTHONPATH=/app
+    PYTHONPATH=/app \
+    YF_MAX_RETRIES=5 \
+    YF_BACKOFF_FACTOR=2 \
+    YF_INITIAL_WAIT=2 \
+    YF_TIMEOUT=30
 
 # Set work directory
 WORKDIR /app
@@ -51,6 +55,9 @@ COPY . .
 RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
 
+# Make start script executable
+RUN chmod +x start.sh
+
 # Expose port (Fly.io prefers port 8080)
 EXPOSE 8080
 
@@ -58,5 +65,5 @@ EXPOSE 8080
 HEALTHCHECK --interval=5s --timeout=3s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:8080/health || exit 1
 
-# Start the app with gunicorn - fewer workers for faster startup
-CMD exec gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 60 app:app 
+# Use our startup script
+CMD ["./start.sh"] 
