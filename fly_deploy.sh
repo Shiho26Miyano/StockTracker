@@ -17,6 +17,20 @@ if ! flyctl apps list | grep -q "$APP_NAME"; then
   exit 1
 fi
 
+# Ask for Polygon.io API key
+read -p "Enter your Polygon.io API key: " api_key
+if [ -z "$api_key" ]; then
+  echo "ERROR: Polygon.io API key is required for the application to function."
+  echo "You can get a free API key at https://polygon.io/dashboard/signup"
+  exit 1
+else
+  echo "Using provided API key"
+fi
+
+# Set the Polygon.io API key as a secret
+echo "Setting Polygon.io API key as a secret..."
+flyctl secrets set POLYGON_API_KEY="$api_key" --app "$APP_NAME"
+
 # Set regions (try a few reliable ones)
 echo "Setting regions..."
 flyctl regions set sjc ord dfw
