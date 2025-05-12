@@ -9,16 +9,24 @@ import os
 from functools import wraps
 import time
 from cachetools import TTLCache
+import random
+import requests
+from requests.exceptions import HTTPError
 
 app = Flask(__name__)
 
-# Cache for storing stock data (TTL: 5 minutes)
-stock_cache = TTLCache(maxsize=100, ttl=300)
+# Cache for storing stock data (TTL: 10 minutes)
+stock_cache = TTLCache(maxsize=100, ttl=600)
 
 # Rate limiting configuration
 RATE_LIMIT = 30  # requests
 RATE_WINDOW = 60  # seconds
 request_history = {}
+
+# Yahoo Finance rate limiting handling
+YF_MAX_RETRIES = 3
+YF_BACKOFF_FACTOR = 2
+YF_INITIAL_WAIT = 1
 
 def rate_limit(f):
     @wraps(f)
@@ -53,19 +61,55 @@ STOCK_TICKERS = {
     "walmart": "WMT"
 }
 
+def get_stock_with_retry(ticker, period):
+    """Fetch stock data with exponential backoff retry logic"""
+    retries = 0
+    while retries < YF_MAX_RETRIES:
+        try:
+            stock = yf.Ticker(ticker)
+            hist = stock.history(period=period)
+            info = stock.info
+            
+            # Check if we got valid data
+            if hist.empty:
+                raise ValueError("Empty history data received")
+            
+            return {
+                "history": hist,
+                "info": info
+            }
+        except HTTPError as e:
+            if hasattr(e, 'response') and e.response.status_code == 429:
+                wait_time = YF_INITIAL_WAIT * (YF_BACKOFF_FACTOR ** retries) + random.uniform(0, 1)
+                app.logger.warning(f"Rate limited by Yahoo Finance. Retrying in {wait_time:.2f} seconds...")
+                time.sleep(wait_time)
+                retries += 1
+            else:
+                raise e
+        except Exception as e:
+            # For other exceptions, retry with backoff
+            wait_time = YF_INITIAL_WAIT * (YF_BACKOFF_FACTOR ** retries) + random.uniform(0, 1)
+            app.logger.warning(f"Error fetching data: {str(e)}. Retrying in {wait_time:.2f} seconds...")
+            time.sleep(wait_time)
+            retries += 1
+    
+    # If we've exhausted retries
+    raise Exception(f"Failed to fetch data for {ticker} after {YF_MAX_RETRIES} retries")
+
 def get_cached_stock_data(ticker, period):
+    """Get stock data with caching and retry logic"""
     cache_key = f"{ticker}_{period}"
+    
+    # Try to get from cache first
     if cache_key in stock_cache:
+        app.logger.info(f"Cache hit for {ticker}")
         return stock_cache[cache_key]
     
-    stock = yf.Ticker(ticker)
-    hist = stock.history(period=period)
-    info = stock.info
+    # If not in cache, fetch with retry logic
+    app.logger.info(f"Cache miss for {ticker}, fetching from Yahoo Finance")
+    data = get_stock_with_retry(ticker, period)
     
-    data = {
-        "history": hist,
-        "info": info
-    }
+    # Store in cache
     stock_cache[cache_key] = data
     return data
 
@@ -88,6 +132,9 @@ def get_stock_data():
             return jsonify({"error": "No ticker provided"}), 400
         
         try:
+            # Add a small random delay to prevent simultaneous Yahoo Finance requests
+            time.sleep(random.uniform(0.1, 0.5))
+            
             stock_data = get_cached_stock_data(ticker, period)
             hist = stock_data["history"]
             info = stock_data["info"]
@@ -96,7 +143,13 @@ def get_stock_data():
                 return jsonify({"error": "No data available for this ticker"}), 400
             
             company_name = info.get('shortName', ticker)
-            current_price = info.get('currentPrice', hist['Close'].iloc[-1] if not hist.empty else 0)
+            # Fallback mechanisms for price data
+            if 'currentPrice' in info:
+                current_price = info.get('currentPrice')
+            elif 'regularMarketPrice' in info:
+                current_price = info.get('regularMarketPrice')
+            else:
+                current_price = hist['Close'].iloc[-1] if not hist.empty else 0
             
             fig = go.Figure()
             fig.add_trace(go.Candlestick(
@@ -134,7 +187,7 @@ def get_stock_data():
             }
             
             response = make_response(jsonify(response_data))
-            response.headers['Cache-Control'] = 'public, max-age=300'
+            response.headers['Cache-Control'] = 'public, max-age=600'
             return response
             
         except Exception as e:
@@ -163,9 +216,13 @@ def compare_stocks():
             return jsonify({"error": "Maximum 5 stocks can be compared at once"}), 400
         
         fig = go.Figure()
+        errors = []
         
         for ticker in tickers:
             try:
+                # Add a small random delay between stocks
+                time.sleep(random.uniform(0.5, 1.0))
+                
                 stock_data = get_cached_stock_data(ticker, period)
                 hist = stock_data["history"]
                 
@@ -181,6 +238,11 @@ def compare_stocks():
                     ))
             except Exception as e:
                 app.logger.error(f"Error processing {ticker}: {str(e)}")
+                errors.append(f"{ticker}: {str(e)}")
+        
+        # If we couldn't get data for any tickers
+        if not fig.data and errors:
+            return jsonify({"error": "Failed to retrieve data for any tickers", "details": errors}), 500
         
         fig.update_layout(
             title='Comparative Stock Performance (% Change)',
@@ -191,8 +253,12 @@ def compare_stocks():
         
         plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
         
-        response = make_response(jsonify({"plot": plot_json}))
-        response.headers['Cache-Control'] = 'public, max-age=300'
+        response_data = {"plot": plot_json}
+        if errors:
+            response_data["partial_errors"] = errors
+        
+        response = make_response(jsonify(response_data))
+        response.headers['Cache-Control'] = 'public, max-age=600'
         return response
         
     except Exception as e:
@@ -203,7 +269,7 @@ def compare_stocks():
 def health_check():
     """Health check endpoint for monitoring and container orchestration."""
     try:
-        # Perform a simple database check by making a minimal yfinance request
+        # Just check if pandas is working, don't hit external APIs for health check
         pd.DataFrame([1])  # Test pandas
         return jsonify({
             "status": "healthy",
