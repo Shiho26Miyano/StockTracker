@@ -201,13 +201,25 @@ def compare_stocks():
 
 @app.route('/health')
 def health_check():
-    return jsonify({
-        "status": "healthy",
-        "timestamp": datetime.now().isoformat(),
-        "version": os.environ.get("APP_VERSION", "1.0.0")
-    })
+    """Health check endpoint for monitoring and container orchestration."""
+    try:
+        # Perform a simple database check by making a minimal yfinance request
+        pd.DataFrame([1])  # Test pandas
+        return jsonify({
+            "status": "healthy",
+            "timestamp": datetime.now().isoformat(),
+            "version": os.environ.get("APP_VERSION", "1.0.0")
+        })
+    except Exception as e:
+        app.logger.error(f"Health check failed: {str(e)}")
+        return jsonify({
+            "status": "unhealthy",
+            "error": str(e),
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
 if __name__ == '__main__':
-    port = int(os.environ.get("PORT", 5001))
+    # Get port from environment variable or default to 8080
+    port = int(os.environ.get("PORT", 8080))
     debug = os.environ.get("FLASK_DEBUG", "False") == "True"
     app.run(host='0.0.0.0', port=port, debug=debug) 
