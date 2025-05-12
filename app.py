@@ -5,6 +5,7 @@ import plotly.graph_objects as go
 import plotly.utils
 import json
 from datetime import datetime, timedelta
+import os
 
 app = Flask(__name__)
 
@@ -129,4 +130,8 @@ def compare_stocks():
     return jsonify({"plot": plot_json})
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5001, debug=True) 
+    # Get port from environment variable or default to 5001
+    port = int(os.environ.get("PORT", 5001))
+    # In production, you shouldn't run with debug=True
+    debug = os.environ.get("FLASK_DEBUG", "True") == "True"
+    app.run(host='0.0.0.0', port=port, debug=debug) 
