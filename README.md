@@ -10,6 +10,9 @@ A Python web application to track stock prices for Apple, Microsoft, Amazon, Goo
 - Select different time periods (1 day to 5 years)
 - Responsive design for desktop and mobile
 
+<img width="1338" alt="Screenshot 2025-05-12 at 1 23 14 AM" src="https://github.com/user-attachments/assets/ea3783ec-121d-4f9c-ae81-2518b6714de5" />
+
+
 ## Requirements
 
 - Python 3.11
