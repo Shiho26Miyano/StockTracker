@@ -141,6 +141,29 @@ def test_yf():
     except Exception as e:
         return str(e)
 
+def max_profit(prices):
+    min_price = float('inf')
+    max_profit = 0
+    for price in prices:
+        if price < min_price:
+            min_price = price
+        elif price - min_price > max_profit:
+            max_profit = price - min_price
+    return max_profit
+
+@app.route('/profit_calculator', methods=['GET', 'POST'])
+def profit_calculator():
+    result = None
+    prices_input = ''
+    if request.method == 'POST':
+        prices_input = request.form.get('prices', '')
+        try:
+            prices = list(map(int, prices_input.split(',')))
+            result = max_profit(prices)
+        except Exception as e:
+            result = f"Error: {e}"
+    return render_template('profit_calculator.html', result=result, prices_input=prices_input)
+
 if __name__ == '__main__':
     # Get port from environment variable or default to 5001
     port = int(os.environ.get("PORT", 5001))
