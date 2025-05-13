@@ -1,63 +1,23 @@
-app = "stocktracker-besttesttest222"
-primary_region = "sjc"
-kill_signal = "SIGINT"
-kill_timeout = "15s"
+# fly.toml app configuration file generated for stocktracker-toz5og on 2025-05-13T02:49:04Z
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
 
-[experimental]
-  auto_rollback = true
+app = 'stocktracker-toz5og'
+primary_region = 'ewr'
 
 [build]
-  [build.args]
-    PYTHON_VERSION = "3.11"
-
-[env]
-  PORT = "8080"
-  FLASK_ENV = "production"
-  FLASK_DEBUG = "False"
-  POLYGON_API_KEY = "REPLACE_WITH_YOUR_API_KEY"
-  POLYGON_MAX_RETRIES = "3"
-  POLYGON_BACKOFF_FACTOR = "2"
-  POLYGON_INITIAL_WAIT = "1"
-  POLYGON_TIMEOUT = "30"
 
 [http_service]
   internal_port = 8080
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 0
-  processes = ["app"]
-
-  [http_service.concurrency]
-    type = "connections"
-    hard_limit = 25
-    soft_limit = 20
-
-  [[http_service.ports]]
-    port = 80
-    handlers = ["http"]
-    force_https = true
-
-  [[http_service.ports]]
-    port = 443
-    handlers = ["tls", "http"]
-
-[checks]
-  [checks.health]
-    port = 8080
-    type = "http"
-    interval = "15s"
-    timeout = "15s"
-    grace_period = "45s"
-    method = "GET"
-    path = "/health"
-    protocol = "http"
+  processes = ['app']
 
 [[vm]]
-  memory = "512mb"
-  cpu_kind = "shared"
+  memory = '512mb'
+  cpu_kind = 'shared'
   cpus = 1
-
-[deploy]
-  strategy = "rolling"
-  release_command = "echo 'Starting deployment...'" 
+  memory_mb = 512
