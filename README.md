@@ -52,6 +52,22 @@ http://127.0.0.1:5000/
    - Select multiple stocks and click "Compare Selected" to see comparative performance
    - Change the time period using the dropdown menu
 
+## Stock Data Retrieval Flowchart
+
+```mermaid
+flowchart TD
+    A[User requests stock data (ticker, period)] --> B[Call yfinance: Ticker(ticker).history(period)]
+    B --> C{Is DataFrame empty?}
+    C -- No --> D[Return stock data to user]
+    C -- Yes --> E[Log warning: No data for ticker/period]
+    E --> F[Try alias ticker (e.g., GOOGL -> GOOG)]
+    F --> G[Call yfinance: Ticker(alias).history(period)]
+    G --> H{Is DataFrame empty?}
+    H -- No --> I[Return alias stock data to user]
+    H -- Yes --> J[Return error: No data available for ticker and period]
+    J --> K[Suggest: Try different period, check ticker, or try again later]
+```
+
 ## Notes
 
 - Stock data is fetched from Yahoo Finance (yfinance)

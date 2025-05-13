@@ -14,9 +14,11 @@ kill_timeout = "15s"
   PORT = "8080"
   FLASK_ENV = "production"
   FLASK_DEBUG = "False"
-  YF_MAX_RETRIES = "5"
-  YF_BACKOFF_FACTOR = "2"
-  YF_INITIAL_WAIT = "2"
+  POLYGON_API_KEY = "REPLACE_WITH_YOUR_API_KEY"
+  POLYGON_MAX_RETRIES = "3"
+  POLYGON_BACKOFF_FACTOR = "2"
+  POLYGON_INITIAL_WAIT = "1"
+  POLYGON_TIMEOUT = "30"
 
 [http_service]
   internal_port = 8080
