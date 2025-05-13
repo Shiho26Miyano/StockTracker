@@ -20,6 +20,9 @@
         </form>
         {% if result is not none %}
             <h3>Maximum Profit: {{ result }}</h3>
+            {% if explanation %}
+                <p>{{ explanation }}</p>
+            {% endif %}
         {% endif %}
     </div>
 </body>
