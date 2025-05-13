@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Stock Profit Calculator</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        .container { max-width: 400px; margin: auto; padding: 2em; border: 1px solid #ddd; border-radius: 8px; background: #fafbfc; }
+        input[type="text"] { width: 100%; padding: 0.5em; margin-bottom: 1em; }
+        button { padding: 0.5em 1em; }
+        h2 { text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Stock Profit Calculator</h2>
+        <form method="post">
+            <label>Enter prices (comma-separated):</label>
+            <input type="text" name="prices" value="{{ prices_input }}" required>
+            <button type="submit">Calculate</button>
+        </form>
+        {% if result is not none %}
+            <h3>Maximum Profit: {{ result }}</h3>
+            {% if explanation %}
+                <p>{{ explanation }}</p>
+            {% endif %}
+        {% endif %}
+    </div>
+</body>
+</html> 

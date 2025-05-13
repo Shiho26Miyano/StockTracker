@@ -141,6 +141,41 @@ def test_yf():
     except Exception as e:
         return str(e)
 
+def max_profit(prices):
+    min_price = float('inf')
+    max_profit = 0
+    buy_day = sell_day = -1
+    temp_buy_day = 0
+    for i, price in enumerate(prices):
+        if price < min_price:
+            min_price = price
+            temp_buy_day = i
+        elif price - min_price > max_profit:
+            max_profit = price - min_price
+            buy_day = temp_buy_day
+            sell_day = i
+    return max_profit, buy_day, sell_day
+
+@app.route('/profit_calculator', methods=['GET', 'POST'])
+def profit_calculator():
+    result = None
+    explanation = None
+    prices_input = ''
+    if request.method == 'POST':
+        prices_input = request.form.get('prices', '')
+        try:
+            prices = list(map(int, prices_input.split(',')))
+            profit, buy_day, sell_day = max_profit(prices)
+            result = profit
+            if profit > 0:
+                explanation = f"Buy on day {buy_day+1} (price = {prices[buy_day]}) and sell on day {sell_day+1} (price = {prices[sell_day]}), profit = {prices[sell_day]} - {prices[buy_day]} = {profit}."
+            else:
+                explanation = "No transactions are done and the max profit = 0."
+        except Exception as e:
+            result = f"Error: {e}"
+            explanation = None
+    return render_template('profit_calculator.html', result=result, prices_input=prices_input, explanation=explanation)
+
 if __name__ == '__main__':
     # Get port from environment variable or default to 5001
     port = int(os.environ.get("PORT", 5001))

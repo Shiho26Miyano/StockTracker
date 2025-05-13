@@ -1,12 +1,12 @@
 # StockTracker
 
-A Python web application to track stock prices for Apple, Microsoft, Amazon, Google, Meta, Tesla, Nvidia, JPMorgan, Bank of America, and Walmart.
+A Python web application to track stock prices for major companies like Apple, Microsoft, Amazon, Google, Meta, Tesla, Nvidia, JPMorgan, Bank of America, and Walmart.
 
 ## Features
 
-- View real-time stock data from Yahoo Finance
-- Interactive candlestick charts for individual stocks
-- Compare multiple stocks with normalized performance charts
+- Real-time stock data from Yahoo Finance
+- Interactive candlestick charts
+- Compare multiple stocks with normalized performance
 - Select different time periods (1 day to 5 years)
 - Responsive design for desktop and mobile
 
@@ -24,62 +24,34 @@ A Python web application to track stock prices for Apple, Microsoft, Amazon, Goo
 
 ## Installation
 
-1. Clone this repository:
-```
+```sh
 git clone <repository-url>
 cd stock-tracker-app
-```
-
-2. Install required packages:
-```
 pip install -r requirements.txt
 ```
 
 ## Usage
 
-1. Run the application:
-```
+```sh
 python app.py
 ```
+Then open your browser at: [http://127.0.0.1:5000/](http://127.0.0.1:5000/)
 
-2. Open a web browser and navigate to:
-```
-http://127.0.0.1:5000/
-```
-
-3. Use the interface to:
-   - Select a stock from the list to view its price chart
-   - Select multiple stocks and click "Compare Selected" to see comparative performance
-   - Change the time period using the dropdown menu
-
-## Stock Data Retrieval Flowchart
-
-```mermaid
-flowchart TD
-    A[User requests stock data (ticker, period)] --> B[Call yfinance: Ticker(ticker).history(period)]
-    B --> C{Is DataFrame empty?}
-    C -- No --> D[Return stock data to user]
-    C -- Yes --> E[Log warning: No data for ticker/period]
-    E --> F[Try alias ticker (e.g., GOOGL -> GOOG)]
-    F --> G[Call yfinance: Ticker(alias).history(period)]
-    G --> H{Is DataFrame empty?}
-    H -- No --> I[Return alias stock data to user]
-    H -- Yes --> J[Return error: No data available for ticker and period]
-    J --> K[Suggest: Try different period, check ticker, or try again later]
-```
+- Select a stock to view its price chart
+- Select multiple stocks and click "Compare Selected" for comparative performance
+- Change the time period using the dropdown menu
 
 ## Notes
 
 - Stock data is fetched from Yahoo Finance (yfinance)
-- The application updates data on request, not in real-time
+- Data updates on request (not real-time streaming)
 - Market data may be delayed by 15-20 minutes
 
 ## Deployment
 
-For production deployment, consider using Gunicorn:
+For production, use Gunicorn:
 
-```
+```sh
 gunicorn app:app
 ```
-
-Or deploy to a platform like Fly.io or Railway using the included Procfile and runtime.txt for Python 3.11 compatibility.
+Or deploy to a platform like Fly.io or Railway (see Procfile and runtime.txt for Python 3.11 compatibility).
